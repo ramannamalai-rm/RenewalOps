@@ -1,0 +1,64 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: renewalops
+      POSTGRES_PASSWORD: renewalops_dev
+      POSTGRES_DB: renewalops
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U renewalops"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: src/RenewalOps.Api/Dockerfile
+    ports:
+      - "5000:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=renewalops;Username=renewalops;Password=renewalops_dev"
+      Jwt__Secret: "ThisIsADevelopmentSecretKeyThatIsLongEnoughForHS256!@#$$%"
+      Jwt__Issuer: "RenewalOps"
+      Jwt__Audience: "RenewalOps"
+      Jwt__ExpiryMinutes: "60"
+      MinIO__Endpoint: "minio:9000"
+      MinIO__AccessKey: "minioadmin"
+      MinIO__SecretKey: "minioadmin"
+      MinIO__BucketName: "renewalops"
+      Ocr__TessdataPath: "/app/tessdata"
+      Seed__AdminEmail: "admin@renewalops.local"
+      Seed__AdminPassword: "Admin123!"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  miniodata:
