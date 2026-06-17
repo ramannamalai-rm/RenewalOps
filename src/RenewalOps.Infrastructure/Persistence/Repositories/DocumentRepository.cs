@@ -30,6 +30,7 @@ public class DocumentRepository : IDocumentRepository
         return await _db.Documents
             .Where(d => d.OwnerId == ownerId)
             .OrderByDescending(d => d.CreatedUtc)
+            .ThenByDescending(d => d.Id)
             .ToListAsync(ct);
     }
 
@@ -69,6 +70,7 @@ public class DocumentRepository : IDocumentRepository
 
         var items = await query
             .OrderByDescending(d => d.CreatedUtc)
+            .ThenByDescending(d => d.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(ct);
