@@ -51,6 +51,7 @@ services:
       MinIO__SecretKey: "minioadmin"
       MinIO__BucketName: "renewalops"
       Ocr__TessdataPath: "/app/tessdata"
+      BackgroundJobs__Enabled: "true"
       Seed__AdminEmail: "admin@renewalops.local"
       Seed__AdminPassword: "Admin123!"
     depends_on:

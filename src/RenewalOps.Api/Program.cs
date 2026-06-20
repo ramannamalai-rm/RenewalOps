@@ -1,8 +1,10 @@
+using Hangfire;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using RenewalOps.Application;
 using RenewalOps.Infrastructure;
+using RenewalOps.Infrastructure.Jobs;
 using RenewalOps.Infrastructure.Persistence;
 using Serilog;
 using System.Text;
@@ -18,6 +20,18 @@ try
 
     builder.Services.AddApplication();
     builder.Services.AddInfrastructure(builder.Configuration);
+
+    // Background jobs require a live Postgres connection for Hangfire storage; the
+    // integration-test host disables them so it can run DB-free. The env var is read
+    // directly (not via builder.Configuration) because top-level startup code runs
+    // before builder.Build(), and WebApplicationFactory's config overrides only apply
+    // post-build — the env var is the one source guaranteed to be visible here.
+    var backgroundJobsEnabled =
+        bool.TryParse(Environment.GetEnvironmentVariable("BackgroundJobs__Enabled"), out var bgEnv)
+            ? bgEnv
+            : builder.Configuration.GetValue("BackgroundJobs:Enabled", true);
+    if (backgroundJobsEnabled)
+        builder.Services.AddBackgroundJobs(builder.Configuration);
 
     var jwtSecret = builder.Configuration["Jwt:Secret"]
         ?? throw new InvalidOperationException("Jwt:Secret is not configured.");
@@ -89,6 +103,18 @@ try
 
     app.UseAuthentication();
     app.UseAuthorization();
+
+    if (backgroundJobsEnabled)
+    {
+        app.UseHangfireDashboard("/hangfire", new DashboardOptions
+        {
+            Authorization = new[]
+            {
+                new HangfireDashboardAuthorizationFilter(app.Environment.IsDevelopment())
+            }
+        });
+    }
+
     app.MapControllers();
 
     Log.Information("RenewalOps API starting on {Urls}", string.Join(", ", app.Urls));

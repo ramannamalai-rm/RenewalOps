@@ -1,3 +1,5 @@
+using Hangfire;
+using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -42,6 +44,28 @@ public static class DependencyInjection
         services.AddSingleton<IOcrService, TesseractOcrService>();
         services.AddScoped<IAuthService, JwtTokenService>();
         services.AddScoped<IDocumentService, DocumentService>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers Hangfire with PostgreSQL-backed storage and a background server.
+    /// Kept separate from <see cref="AddInfrastructure"/> so test hosts can opt out
+    /// (the in-memory test stack does not run a real job server).
+    /// </summary>
+    public static IServiceCollection AddBackgroundJobs(
+        this IServiceCollection services, IConfiguration config)
+    {
+        var connectionString = config.GetConnectionString("DefaultConnection");
+
+        services.AddHangfire(cfg => cfg
+            .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+            .UseSimpleAssemblyNameTypeSerializer()
+            .UseRecommendedSerializerSettings()
+            .UsePostgreSqlStorage(options =>
+                options.UseNpgsqlConnection(connectionString)));
+
+        services.AddHangfireServer();
 
         return services;
     }
