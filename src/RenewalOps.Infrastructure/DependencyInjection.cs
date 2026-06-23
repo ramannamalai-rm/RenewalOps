@@ -8,6 +8,7 @@ using Minio;
 using RenewalOps.Application.Interfaces;
 using RenewalOps.Domain.Entities;
 using RenewalOps.Domain.Interfaces;
+using RenewalOps.Infrastructure.Jobs;
 using RenewalOps.Infrastructure.Persistence;
 using RenewalOps.Infrastructure.Persistence.Repositories;
 using RenewalOps.Infrastructure.Services;
@@ -45,6 +46,12 @@ public static class DependencyInjection
         services.AddScoped<IAuthService, JwtTokenService>();
         services.AddScoped<IDocumentService, DocumentService>();
 
+        // Background job + its default (inline) scheduler. When the Hangfire server is
+        // running, AddBackgroundJobs overrides IDocumentJobScheduler with the Hangfire
+        // implementation; otherwise OCR runs inline so the app still works end-to-end.
+        services.AddScoped<OcrProcessingJob>();
+        services.AddScoped<IDocumentJobScheduler, InlineDocumentJobScheduler>();
+
         return services;
     }
 
@@ -66,6 +73,10 @@ public static class DependencyInjection
                 options.UseNpgsqlConnection(connectionString)));
 
         services.AddHangfireServer();
+
+        // With a real job server available, enqueue OCR onto Hangfire instead of running
+        // it inline. Overrides the default registered in AddInfrastructure.
+        services.AddScoped<IDocumentJobScheduler, HangfireDocumentJobScheduler>();
 
         return services;
     }

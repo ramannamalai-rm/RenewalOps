@@ -49,7 +49,7 @@ public class DocumentUploadTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
-    public async Task Upload_Document_Should_Return_Created_With_ExpiryDate_And_AuditEvents()
+    public async Task Upload_Then_Ocr_Job_Populates_ExpiryDate_And_Writes_AuditEvents()
     {
         var token = await GetTokenViaRegisterAsync("upload-test@test.com");
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
@@ -68,17 +68,19 @@ public class DocumentUploadTests : IClassFixture<CustomWebApplicationFactory>
         var doc = await uploadResponse.Content.ReadFromJsonAsync<DocumentResponse>(JsonOptions);
         doc.Should().NotBeNull();
         doc!.Title.Should().Be("Test Passport");
-        doc.ExpiryDate.Should().NotBeNull("the fake OCR service returns an expiry date");
-        doc.ExpiryDate!.Value.Year.Should().Be(2025);
-        doc.RawExtractedText.Should().Contain("Expiry Date");
 
+        // Phase 2: OCR runs as a background job. In the test host the inline scheduler runs
+        // it synchronously during upload, so by the time we fetch the doc the OCR-derived
+        // ExpiryDate is populated.
         var getResponse = await _client.GetAsync($"/api/documents/{doc.Id}");
         getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var fetched = await getResponse.Content.ReadFromJsonAsync<DocumentResponse>(JsonOptions);
         fetched!.Id.Should().Be(doc.Id);
-        fetched.ExpiryDate.Should().Be(doc.ExpiryDate);
+        fetched.ExpiryDate.Should().NotBeNull("the OCR job extracts an expiry date");
+        fetched.ExpiryDate!.Value.Year.Should().Be(2025);
+        fetched.RawExtractedText.Should().Contain("Expiry Date");
 
-        // Phase 1 acceptance: verify two AuditEvents (DocumentUploaded + DocumentViewed) exist in DB
+        // Verify audit trail: upload, OCR completion (DocumentUpdated), and the GET (DocumentViewed)
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var auditEvents = await db.AuditEvents
@@ -86,9 +88,9 @@ public class DocumentUploadTests : IClassFixture<CustomWebApplicationFactory>
             .OrderBy(a => a.CreatedUtc)
             .ToListAsync();
 
-        auditEvents.Should().HaveCountGreaterThanOrEqualTo(2,
-            "upload should write DocumentUploaded and the GET should write DocumentViewed");
         auditEvents.Should().Contain(a => a.Action == nameof(AuditAction.DocumentUploaded));
+        auditEvents.Should().Contain(a => a.Action == nameof(AuditAction.DocumentUpdated),
+            "the OCR job writes a DocumentUpdated audit event");
         auditEvents.Should().Contain(a => a.Action == nameof(AuditAction.DocumentViewed));
     }
 

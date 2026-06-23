@@ -12,20 +12,20 @@ public class DocumentService : IDocumentService
     private readonly IDocumentRepository _documentRepo;
     private readonly IAuditEventRepository _auditRepo;
     private readonly IStorageService _storage;
-    private readonly IOcrService _ocr;
+    private readonly IDocumentJobScheduler _jobScheduler;
     private readonly ILogger<DocumentService> _logger;
 
     public DocumentService(
         IDocumentRepository documentRepo,
         IAuditEventRepository auditRepo,
         IStorageService storage,
-        IOcrService ocr,
+        IDocumentJobScheduler jobScheduler,
         ILogger<DocumentService> logger)
     {
         _documentRepo = documentRepo;
         _auditRepo = auditRepo;
         _storage = storage;
-        _ocr = ocr;
+        _jobScheduler = jobScheduler;
         _logger = logger;
     }
 
@@ -40,9 +40,9 @@ public class DocumentService : IDocumentService
 
         await _storage.UploadAsync(storageKey, buffer, command.ContentType, ct);
 
-        buffer.Position = 0;
-        var ocrResult = await _ocr.ExtractTextAsync(buffer, command.ContentType, ct);
-
+        // OCR + expiry parsing now run as a background job (Phase 2) so the upload
+        // request returns immediately. ExpiryDate/RawExtractedText are populated later
+        // by OcrProcessingJob.
         var document = new Document
         {
             OwnerId = ownerId,
@@ -52,9 +52,6 @@ public class DocumentService : IDocumentService
             OriginalFileName = command.FileName,
             ContentType = command.ContentType,
             SizeBytes = command.SizeBytes,
-            ExpiryDate = ocrResult.DetectedExpiryDate,
-            IssueDate = ocrResult.DetectedIssueDate,
-            RawExtractedText = string.IsNullOrWhiteSpace(ocrResult.RawText) ? null : ocrResult.RawText,
             Status = DocumentStatus.Active
         };
 
@@ -67,7 +64,9 @@ public class DocumentService : IDocumentService
             Action = nameof(AuditAction.DocumentUploaded)
         }, ct);
 
-        _logger.LogInformation("Document {DocId} uploaded by {OwnerId}", document.Id, ownerId);
+        _jobScheduler.EnqueueOcrProcessing(document.Id);
+
+        _logger.LogInformation("Document {DocId} uploaded by {OwnerId}; OCR job enqueued", document.Id, ownerId);
         return DocumentResponse.FromEntity(document);
     }
 
