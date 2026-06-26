@@ -41,15 +41,18 @@ public static class DependencyInjection
 
         services.AddScoped<IDocumentRepository, DocumentRepository>();
         services.AddScoped<IAuditEventRepository, AuditEventRepository>();
+        services.AddScoped<IReminderRunRepository, ReminderRunRepository>();
         services.AddScoped<IStorageService, MinioStorageService>();
         services.AddSingleton<IOcrService, TesseractOcrService>();
         services.AddScoped<IAuthService, JwtTokenService>();
         services.AddScoped<IDocumentService, DocumentService>();
+        services.AddScoped<IReminderScheduler, ReminderScheduler>();
 
-        // Background job + its default (inline) scheduler. When the Hangfire server is
+        // Background jobs + their default (inline) scheduler. When the Hangfire server is
         // running, AddBackgroundJobs overrides IDocumentJobScheduler with the Hangfire
         // implementation; otherwise OCR runs inline so the app still works end-to-end.
         services.AddScoped<OcrProcessingJob>();
+        services.AddScoped<ReminderJob>();
         services.AddScoped<IDocumentJobScheduler, InlineDocumentJobScheduler>();
 
         return services;

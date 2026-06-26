@@ -17,6 +17,7 @@ public class OcrProcessingJob
     private readonly IAuditEventRepository _auditRepo;
     private readonly IStorageService _storage;
     private readonly IOcrService _ocr;
+    private readonly IReminderScheduler _reminderScheduler;
     private readonly ILogger<OcrProcessingJob> _logger;
 
     public OcrProcessingJob(
@@ -24,12 +25,14 @@ public class OcrProcessingJob
         IAuditEventRepository auditRepo,
         IStorageService storage,
         IOcrService ocr,
+        IReminderScheduler reminderScheduler,
         ILogger<OcrProcessingJob> logger)
     {
         _documentRepo = documentRepo;
         _auditRepo = auditRepo;
         _storage = storage;
         _ocr = ocr;
+        _reminderScheduler = reminderScheduler;
         _logger = logger;
     }
 
@@ -58,6 +61,9 @@ public class OcrProcessingJob
             Action = nameof(AuditAction.DocumentUpdated),
             PayloadJson = $"{{\"ocr\":true,\"expiryDate\":\"{ocrResult.DetectedExpiryDate:o}\"}}"
         }, ct);
+
+        if (ocrResult.DetectedExpiryDate is { } expiry)
+            await _reminderScheduler.ScheduleForDocumentAsync(document.Id, expiry, ct);
 
         _logger.LogInformation(
             "OCR completed for document {DocId}: expiry={Expiry}", documentId, ocrResult.DetectedExpiryDate);

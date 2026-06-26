@@ -8,4 +8,11 @@ public interface IDocumentJobScheduler
 {
     /// <summary>Queues OCR + expiry parsing for a freshly uploaded document.</summary>
     void EnqueueOcrProcessing(Guid documentId);
+
+    /// <summary>
+    /// Dispatches a single reminder to fire at <paramref name="runAtUtc"/>. With a job server
+    /// running this becomes a delayed Hangfire job; without one it is a no-op (the Pending
+    /// ReminderRun row still records that the reminder was scheduled).
+    /// </summary>
+    void ScheduleReminderDispatch(Guid reminderRunId, DateTime runAtUtc);
 }

@@ -19,4 +19,10 @@ public sealed class HangfireDocumentJobScheduler : IDocumentJobScheduler
     {
         _jobClient.Enqueue<OcrProcessingJob>(job => job.RunAsync(documentId, CancellationToken.None));
     }
+
+    public void ScheduleReminderDispatch(Guid reminderRunId, DateTime runAtUtc)
+    {
+        var enqueueAt = new DateTimeOffset(DateTime.SpecifyKind(runAtUtc, DateTimeKind.Utc));
+        _jobClient.Schedule<ReminderJob>(job => job.RunAsync(reminderRunId, CancellationToken.None), enqueueAt);
+    }
 }
