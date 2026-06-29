@@ -85,6 +85,23 @@ public class DocumentRepository : IDocumentRepository
         await _db.SaveChangesAsync(ct);
     }
 
+    public async Task UpdateRangeAsync(IEnumerable<Document> documents, CancellationToken ct = default)
+    {
+        var now = DateTime.UtcNow;
+        foreach (var document in documents)
+            document.UpdatedUtc = now;
+
+        _db.Documents.UpdateRange(documents);
+        await _db.SaveChangesAsync(ct);
+    }
+
+    public async Task<List<Document>> GetWithExpiryForRecomputeAsync(CancellationToken ct = default)
+    {
+        return await _db.Documents
+            .Where(d => d.ExpiryDate != null && d.Status != DocumentStatus.Renewed)
+            .ToListAsync(ct);
+    }
+
     public async Task SoftDeleteAsync(Guid id, CancellationToken ct = default)
     {
         var document = await _db.Documents.FindAsync([id], ct);

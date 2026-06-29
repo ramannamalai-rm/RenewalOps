@@ -14,5 +14,12 @@ public interface IDocumentRepository
         int page, int pageSize,
         CancellationToken ct = default);
     Task UpdateAsync(Document document, CancellationToken ct = default);
+    Task UpdateRangeAsync(IEnumerable<Document> documents, CancellationToken ct = default);
     Task SoftDeleteAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>
+    /// Returns non-deleted documents that have an expiry date and are not already Renewed —
+    /// the candidates whose status the nightly recompute job evaluates.
+    /// </summary>
+    Task<List<Document>> GetWithExpiryForRecomputeAsync(CancellationToken ct = default);
 }

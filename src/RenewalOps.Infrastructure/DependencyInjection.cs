@@ -53,6 +53,7 @@ public static class DependencyInjection
         // implementation; otherwise OCR runs inline so the app still works end-to-end.
         services.AddScoped<OcrProcessingJob>();
         services.AddScoped<ReminderJob>();
+        services.AddScoped<StatusRecomputeJob>();
         services.AddScoped<IDocumentJobScheduler, InlineDocumentJobScheduler>();
 
         return services;

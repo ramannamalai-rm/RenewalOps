@@ -113,6 +113,13 @@ try
                 new HangfireDashboardAuthorizationFilter(app.Environment.IsDevelopment())
             }
         });
+
+        // Nightly recurring job that recomputes ExpiringSoon/Expired statuses.
+        var recomputeCron = app.Configuration["BackgroundJobs:StatusRecomputeCron"] ?? Cron.Daily();
+        app.Services.GetRequiredService<IRecurringJobManager>().AddOrUpdate<StatusRecomputeJob>(
+            "nightly-status-recompute",
+            job => job.RunAsync(CancellationToken.None),
+            recomputeCron);
     }
 
     app.MapControllers();
