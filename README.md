@@ -2,7 +2,7 @@
 
 A document-lifecycle backend for tracking renewable documents (passports, licenses, insurance, warranties). Ingest a PDF/JPG/PNG, OCR an expiry date out of it, store the original in object storage, and (in later phases) sync to Google Drive/Calendar with reminders before expiry.
 
-> **Status:** Phase 1 (MVP) complete. Phases 2–4 (background jobs, Google sync, hardening) not yet implemented.
+> **Status:** Phases 1–2 complete (MVP + background jobs/reminders). Phases 3–4 (Google sync, hardening) not yet implemented.
 
 ---
 
@@ -216,7 +216,7 @@ All secrets live in `appsettings.Development.json` (gitignored values like Googl
 ## Phase status
 
 - ✅ **Phase 1 — MVP**: upload, OCR, list/search, soft delete, JWT auth, audit trail, Docker
-- ⏳ **Phase 2 — Background jobs**: Hangfire, async OCR, scheduled reminders
+- ✅ **Phase 2 — Background jobs**: Hangfire (Postgres-backed) + Admin-only `/hangfire` dashboard, async OCR on upload, T-30/T-7/T-1 reminder scheduling, nightly ExpiringSoon/Expired recompute
 - ⏳ **Phase 3 — Google Drive + Calendar sync**
 - ⏳ **Phase 4 — Hardening**: rate limiting, dedup, versioning, OTel, CI
 
