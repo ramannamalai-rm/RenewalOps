@@ -11,7 +11,8 @@ namespace RenewalOps.Infrastructure.Jobs;
 /// The dashboard is browser-navigated, but this API is JWT-bearer only — a browser
 /// request to /hangfire carries no Authorization header, so a normal [Authorize] check
 /// would lock everyone out. As an MVP compromise:
-///   - In Development: allow local (loopback) requests so the dashboard is usable while developing.
+///   - In Development: allow all (the stack runs behind a Docker port map, so a loopback
+///     check on the remote IP does not work — requests arrive from the bridge gateway).
 ///   - Otherwise: require the caller to carry the Admin role claim.
 /// A proper dashboard auth story (e.g. cookie exchange or a dedicated admin login) is
 /// deferred to Phase 4 hardening.
@@ -27,31 +28,15 @@ public sealed class HangfireDashboardAuthorizationFilter : IDashboardAuthorizati
 
     public bool Authorize(DashboardContext context)
     {
-        var httpContext = context.GetHttpContext();
-
-        if (_isDevelopment && IsLocalRequest(httpContext))
+        if (_isDevelopment)
             return true;
 
-        var user = httpContext.User;
+        var user = context.GetHttpContext().User;
         if (user?.Identity?.IsAuthenticated != true)
             return false;
 
         return user.IsInRole("Admin")
             || user.HasClaim(ClaimTypes.Role, "Admin")
             || user.HasClaim("role", "Admin");
-    }
-
-    private static bool IsLocalRequest(HttpContext context)
-    {
-        var connection = context.Connection;
-        var remote = connection.RemoteIpAddress;
-
-        if (remote is null)
-            return true; // in-process / test host
-
-        if (connection.LocalIpAddress is not null)
-            return remote.Equals(connection.LocalIpAddress);
-
-        return System.Net.IPAddress.IsLoopback(remote);
     }
 }

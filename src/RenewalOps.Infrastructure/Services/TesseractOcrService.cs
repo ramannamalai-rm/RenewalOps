@@ -9,7 +9,7 @@ namespace RenewalOps.Infrastructure.Services;
 
 public sealed partial class TesseractOcrService : IOcrService, IDisposable
 {
-    private readonly TesseractEngine _engine;
+    private readonly Lazy<TesseractEngine> _engine;
     private readonly ILogger<TesseractOcrService> _logger;
     private readonly SemaphoreSlim _semaphore = new(1, 1);
 
@@ -27,7 +27,12 @@ public sealed partial class TesseractOcrService : IOcrService, IDisposable
     public TesseractOcrService(IConfiguration config, ILogger<TesseractOcrService> logger)
     {
         var tessdataPath = config["Ocr:TessdataPath"] ?? "./tessdata";
-        _engine = new TesseractEngine(tessdataPath, "eng", EngineMode.Default);
+        // Construct lazily: the native engine is expensive and can fail if native libs are
+        // missing. Deferring avoids throwing from the DI container / job activator and lets
+        // ExtractTextAsync degrade gracefully to an empty result.
+        _engine = new Lazy<TesseractEngine>(
+            () => new TesseractEngine(tessdataPath, "eng", EngineMode.Default),
+            LazyThreadSafetyMode.ExecutionAndPublication);
         _logger = logger;
     }
 
@@ -43,20 +48,30 @@ public sealed partial class TesseractOcrService : IOcrService, IDisposable
         await fileStream.CopyToAsync(ms, ct);
         var imageBytes = ms.ToArray();
 
-        var text = await Task.Run(() =>
+        string text;
+        try
         {
-            _semaphore.Wait(ct);
-            try
+            text = await Task.Run(() =>
             {
-                using var pix = Pix.LoadFromMemory(imageBytes);
-                using var page = _engine.Process(pix);
-                return page.GetText();
-            }
-            finally
-            {
-                _semaphore.Release();
-            }
-        }, ct);
+                _semaphore.Wait(ct);
+                try
+                {
+                    using var pix = Pix.LoadFromMemory(imageBytes);
+                    using var page = _engine.Value.Process(pix);
+                    return page.GetText();
+                }
+                finally
+                {
+                    _semaphore.Release();
+                }
+            }, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // A bad image or a native-interop failure must not poison the job queue.
+            _logger.LogError(ex, "OCR failed for content type {ContentType}; returning empty result", contentType);
+            return new OcrResult(string.Empty, null, null);
+        }
 
         var expiryDate = ExtractDate(text, ExpiryPattern());
         var issueDate = ExtractDate(text, IssueDatePattern());
@@ -74,11 +89,16 @@ public sealed partial class TesseractOcrService : IOcrService, IDisposable
 
         var raw = match.Groups[1].Value.Trim();
 
+        // Return UTC-kind dates: these persist to a Postgres 'timestamp with time zone'
+        // column, and Npgsql rejects DateTimes with Kind=Unspecified. Detected values are
+        // date-only, so treating them as UTC midnight is correct.
+        const DateTimeStyles styles = DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal;
+
         if (DateTime.TryParseExact(raw, DateFormats,
-                CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+                CultureInfo.InvariantCulture, styles, out var parsed))
             return parsed;
 
-        if (DateTime.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.None, out parsed))
+        if (DateTime.TryParse(raw, CultureInfo.InvariantCulture, styles, out parsed))
             return parsed;
 
         return null;
@@ -97,6 +117,7 @@ public sealed partial class TesseractOcrService : IOcrService, IDisposable
     public void Dispose()
     {
         _semaphore.Dispose();
-        _engine.Dispose();
+        if (_engine.IsValueCreated)
+            _engine.Value.Dispose();
     }
 }

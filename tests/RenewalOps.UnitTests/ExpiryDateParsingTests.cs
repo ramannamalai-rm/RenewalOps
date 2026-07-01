@@ -17,14 +17,18 @@ public class ExpiryDateParsingTests
         "MMM d, yyyy", "MMM dd, yyyy", "MM/dd/yy", "dd/MM/yy"
     };
 
+    // Mirrors TesseractOcrService.ExtractDate: parse as UTC so the value can be persisted to
+    // a Postgres 'timestamp with time zone' column (Npgsql rejects Kind=Unspecified).
+    private const DateTimeStyles ParseStyles = DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal;
+
     private DateTime? TryParseExpiry(string text)
     {
         var match = ExpiryRegex.Match(text);
         if (!match.Success) return null;
         var dateStr = match.Groups[1].Value.Trim();
-        if (DateTime.TryParseExact(dateStr, DateFormats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+        if (DateTime.TryParseExact(dateStr, DateFormats, CultureInfo.InvariantCulture, ParseStyles, out var date))
             return date;
-        if (DateTime.TryParse(dateStr, CultureInfo.InvariantCulture, DateTimeStyles.None, out date))
+        if (DateTime.TryParse(dateStr, CultureInfo.InvariantCulture, ParseStyles, out date))
             return date;
         return null;
     }
@@ -42,6 +46,7 @@ public class ExpiryDateParsingTests
         result!.Value.Year.Should().Be(year);
         result.Value.Month.Should().Be(month);
         result.Value.Day.Should().Be(day);
+        result.Value.Kind.Should().Be(DateTimeKind.Utc, "detected dates must be UTC to persist to Postgres timestamptz");
     }
 
     [Theory]

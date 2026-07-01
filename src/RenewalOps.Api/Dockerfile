@@ -37,4 +37,15 @@ RUN dotnet publish src/RenewalOps.Api/RenewalOps.Api.csproj -c Release -o /app/p
 FROM base AS final
 WORKDIR /app
 COPY --from=build /app/publish .
+
+# The Tesseract .NET wrapper ships Windows DLLs under x64/ and, on Linux, looks for
+# matching .so names (libleptonica-1.82.0.so, libtesseract50.so). Symlink the system
+# libraries (installed in the base stage) to those expected names so native interop resolves.
+# Also provide libdl.so: Debian 12 merged libdl into libc, but the wrapper still dlopen's
+# "libdl", so alias it to libdl.so.2.
+RUN ln -sf /usr/lib/x86_64-linux-gnu/liblept.so.5 /app/x64/libleptonica-1.82.0.so && \
+    ln -sf /usr/lib/x86_64-linux-gnu/libtesseract.so.5 /app/x64/libtesseract50.so && \
+    ln -sf /usr/lib/x86_64-linux-gnu/libdl.so.2 /usr/lib/x86_64-linux-gnu/libdl.so
+ENV LD_LIBRARY_PATH=/app/x64:/usr/lib/x86_64-linux-gnu
+
 ENTRYPOINT ["dotnet", "RenewalOps.Api.dll"]
