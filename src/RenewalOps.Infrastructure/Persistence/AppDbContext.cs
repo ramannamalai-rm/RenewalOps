@@ -10,6 +10,7 @@ public class AppDbContext : IdentityDbContext<User, IdentityRole<Guid>, Guid>
     public DbSet<Document> Documents => Set<Document>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
     public DbSet<ReminderRun> ReminderRuns => Set<ReminderRun>();
+    public DbSet<GoogleConnection> GoogleConnections => Set<GoogleConnection>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 

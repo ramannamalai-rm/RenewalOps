@@ -52,6 +52,9 @@ services:
       MinIO__BucketName: "renewalops"
       Ocr__TessdataPath: "/app/tessdata"
       BackgroundJobs__Enabled: "true"
+      Google__ClientId: "${GOOGLE_CLIENT_ID}"
+      Google__ClientSecret: "${GOOGLE_CLIENT_SECRET}"
+      Google__RedirectUri: "http://localhost:5000/api/google/callback"
       Seed__AdminEmail: "admin@renewalops.local"
       Seed__AdminPassword: "Admin123!"
     depends_on:

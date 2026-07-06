@@ -7,5 +7,6 @@ public enum AuditAction
     DocumentDeleted,
     DocumentUpdated,
     UserRegistered,
-    UserLoggedIn
+    UserLoggedIn,
+    GoogleConnected
 }

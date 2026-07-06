@@ -39,14 +39,18 @@ public static class DependencyInjection
             .Build();
         services.AddSingleton<IMinioClient>(minioClient);
 
+        services.AddHttpClient();
+
         services.AddScoped<IDocumentRepository, DocumentRepository>();
         services.AddScoped<IAuditEventRepository, AuditEventRepository>();
         services.AddScoped<IReminderRunRepository, ReminderRunRepository>();
+        services.AddScoped<IGoogleConnectionRepository, GoogleConnectionRepository>();
         services.AddScoped<IStorageService, MinioStorageService>();
         services.AddSingleton<IOcrService, TesseractOcrService>();
         services.AddScoped<IAuthService, JwtTokenService>();
         services.AddScoped<IDocumentService, DocumentService>();
         services.AddScoped<IReminderScheduler, ReminderScheduler>();
+        services.AddScoped<IGoogleOAuthService, GoogleOAuthService>();
 
         // Background jobs + their default (inline) scheduler. When the Hangfire server is
         // running, AddBackgroundJobs overrides IDocumentJobScheduler with the Hangfire

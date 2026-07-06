@@ -46,7 +46,11 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 ["MinIO:AccessKey"] = "minioadmin",
                 ["MinIO:SecretKey"] = "minioadmin",
                 ["Ocr:TessdataPath"] = "./tessdata",
-                ["BackgroundJobs:Enabled"] = "false"
+                ["BackgroundJobs:Enabled"] = "false",
+                ["Google:ClientId"] = "test-client-id",
+                ["Google:ClientSecret"] = "test-client-secret",
+                ["Google:RedirectUri"] = "http://localhost/api/google/callback",
+                ["Google:TokenEndpoint"] = "https://oauth2.googleapis.com/token"
             });
         });
 
@@ -73,6 +77,10 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             services.AddSingleton<IOcrService, FakeOcrService>();
 
             services.RemoveAll<IMinioClient>();
+
+            // Fake Google's token endpoint so the OAuth callback can be tested without hitting Google.
+            services.AddHttpClient(string.Empty)
+                .ConfigurePrimaryHttpMessageHandler(() => new FakeGoogleTokenHandler());
         });
     }
 }
@@ -111,5 +119,29 @@ public class FakeOcrService : IOcrService
             RawText: "PASSPORT\nName: John Doe\nExpiry Date: 12/31/2025\nIssue Date: 01/01/2020",
             DetectedExpiryDate: new DateTime(2025, 12, 31),
             DetectedIssueDate: new DateTime(2020, 1, 1)));
+    }
+}
+
+/// <summary>Intercepts the Google token-exchange POST and returns a canned token response.</summary>
+public class FakeGoogleTokenHandler : HttpMessageHandler
+{
+    public const string RefreshToken = "fake-refresh-token-xyz";
+
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        var json = $$"""
+        {
+          "access_token": "fake-access-token",
+          "refresh_token": "{{RefreshToken}}",
+          "scope": "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/calendar.events",
+          "token_type": "Bearer",
+          "expires_in": 3599
+        }
+        """;
+        var response = new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        {
+            Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json")
+        };
+        return Task.FromResult(response);
     }
 }
