@@ -78,6 +78,9 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
             services.RemoveAll<IMinioClient>();
 
+            services.RemoveAll<IGoogleDriveClient>();
+            services.AddSingleton<IGoogleDriveClient, FakeGoogleDriveClient>();
+
             // Fake Google's token endpoint so the OAuth callback can be tested without hitting Google.
             services.AddHttpClient(string.Empty)
                 .ConfigurePrimaryHttpMessageHandler(() => new FakeGoogleTokenHandler());
@@ -120,6 +123,16 @@ public class FakeOcrService : IOcrService
             DetectedExpiryDate: new DateTime(2025, 12, 31),
             DetectedIssueDate: new DateTime(2020, 1, 1)));
     }
+}
+
+/// <summary>Fake Drive client so sync jobs can be tested without hitting Google.</summary>
+public class FakeGoogleDriveClient : IGoogleDriveClient
+{
+    public const string FileId = "fake-drive-file-id";
+
+    public Task<string> UploadToRenewalOpsFolderAsync(
+        Guid userId, string fileName, string contentType, Stream content, CancellationToken ct = default)
+        => Task.FromResult(FileId);
 }
 
 /// <summary>Intercepts the Google token-exchange POST and returns a canned token response.</summary>

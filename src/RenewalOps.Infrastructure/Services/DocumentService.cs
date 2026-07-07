@@ -65,8 +65,9 @@ public class DocumentService : IDocumentService
         }, ct);
 
         _jobScheduler.EnqueueOcrProcessing(document.Id);
+        _jobScheduler.EnqueueDriveSync(document.Id);
 
-        _logger.LogInformation("Document {DocId} uploaded by {OwnerId}; OCR job enqueued", document.Id, ownerId);
+        _logger.LogInformation("Document {DocId} uploaded by {OwnerId}; OCR + Drive sync jobs enqueued", document.Id, ownerId);
         return DocumentResponse.FromEntity(document);
     }
 
