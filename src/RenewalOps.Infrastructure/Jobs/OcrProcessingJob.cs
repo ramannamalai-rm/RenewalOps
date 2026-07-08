@@ -18,6 +18,7 @@ public class OcrProcessingJob
     private readonly IStorageService _storage;
     private readonly IOcrService _ocr;
     private readonly IReminderScheduler _reminderScheduler;
+    private readonly IDocumentJobScheduler _jobScheduler;
     private readonly ILogger<OcrProcessingJob> _logger;
 
     public OcrProcessingJob(
@@ -26,6 +27,7 @@ public class OcrProcessingJob
         IStorageService storage,
         IOcrService ocr,
         IReminderScheduler reminderScheduler,
+        IDocumentJobScheduler jobScheduler,
         ILogger<OcrProcessingJob> logger)
     {
         _documentRepo = documentRepo;
@@ -33,6 +35,7 @@ public class OcrProcessingJob
         _storage = storage;
         _ocr = ocr;
         _reminderScheduler = reminderScheduler;
+        _jobScheduler = jobScheduler;
         _logger = logger;
     }
 
@@ -63,7 +66,11 @@ public class OcrProcessingJob
         }, ct);
 
         if (ocrResult.DetectedExpiryDate is { } expiry)
+        {
             await _reminderScheduler.ScheduleForDocumentAsync(document.Id, expiry, ct);
+            // Expiry is now known/changed — upsert the Google Calendar reminder event.
+            _jobScheduler.EnqueueCalendarSync(document.Id);
+        }
 
         _logger.LogInformation(
             "OCR completed for document {DocId}: expiry={Expiry}", documentId, ocrResult.DetectedExpiryDate);

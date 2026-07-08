@@ -81,6 +81,9 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             services.RemoveAll<IGoogleDriveClient>();
             services.AddSingleton<IGoogleDriveClient, FakeGoogleDriveClient>();
 
+            services.RemoveAll<IGoogleCalendarClient>();
+            services.AddSingleton<IGoogleCalendarClient, FakeGoogleCalendarClient>();
+
             // Fake Google's token endpoint so the OAuth callback can be tested without hitting Google.
             services.AddHttpClient(string.Empty)
                 .ConfigurePrimaryHttpMessageHandler(() => new FakeGoogleTokenHandler());
@@ -133,6 +136,16 @@ public class FakeGoogleDriveClient : IGoogleDriveClient
     public Task<string> UploadToRenewalOpsFolderAsync(
         Guid userId, string fileName, string contentType, Stream content, CancellationToken ct = default)
         => Task.FromResult(FileId);
+}
+
+/// <summary>Fake Calendar client. Echoes an existing event id (upsert) or returns a new one.</summary>
+public class FakeGoogleCalendarClient : IGoogleCalendarClient
+{
+    public const string NewEventId = "fake-calendar-event-id";
+
+    public Task<string> UpsertExpiryEventAsync(
+        Guid userId, string? existingEventId, string summary, string description, DateTime eventDateUtc, CancellationToken ct = default)
+        => Task.FromResult(string.IsNullOrEmpty(existingEventId) ? NewEventId : existingEventId);
 }
 
 /// <summary>Intercepts the Google token-exchange POST and returns a canned token response.</summary>

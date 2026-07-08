@@ -37,6 +37,13 @@ public sealed class InlineDocumentJobScheduler : IDocumentJobScheduler
         job.RunAsync(documentId, CancellationToken.None).GetAwaiter().GetResult();
     }
 
+    public void EnqueueCalendarSync(Guid documentId)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var job = scope.ServiceProvider.GetRequiredService<CalendarSyncJob>();
+        job.RunAsync(documentId, CancellationToken.None).GetAwaiter().GetResult();
+    }
+
     public void ScheduleReminderDispatch(Guid reminderRunId, DateTime runAtUtc)
     {
         // No background server to hold a delayed job. The Pending ReminderRun row already

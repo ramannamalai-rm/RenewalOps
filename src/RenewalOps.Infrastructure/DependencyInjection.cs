@@ -53,6 +53,7 @@ public static class DependencyInjection
         services.AddScoped<IGoogleOAuthService, GoogleOAuthService>();
         services.AddScoped<Services.Google.GoogleCredentialFactory>();
         services.AddScoped<IGoogleDriveClient, Services.Google.GoogleDriveClient>();
+        services.AddScoped<IGoogleCalendarClient, Services.Google.GoogleCalendarClient>();
 
         // Background jobs + their default (inline) scheduler. When the Hangfire server is
         // running, AddBackgroundJobs overrides IDocumentJobScheduler with the Hangfire
@@ -61,6 +62,7 @@ public static class DependencyInjection
         services.AddScoped<ReminderJob>();
         services.AddScoped<StatusRecomputeJob>();
         services.AddScoped<DriveSyncJob>();
+        services.AddScoped<CalendarSyncJob>();
         services.AddScoped<IDocumentJobScheduler, InlineDocumentJobScheduler>();
 
         return services;

@@ -25,6 +25,11 @@ public sealed class HangfireDocumentJobScheduler : IDocumentJobScheduler
         _jobClient.Enqueue<DriveSyncJob>(job => job.RunAsync(documentId, CancellationToken.None));
     }
 
+    public void EnqueueCalendarSync(Guid documentId)
+    {
+        _jobClient.Enqueue<CalendarSyncJob>(job => job.RunAsync(documentId, CancellationToken.None));
+    }
+
     public void ScheduleReminderDispatch(Guid reminderRunId, DateTime runAtUtc)
     {
         var enqueueAt = new DateTimeOffset(DateTime.SpecifyKind(runAtUtc, DateTimeKind.Utc));

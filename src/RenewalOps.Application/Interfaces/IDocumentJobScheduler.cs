@@ -12,6 +12,9 @@ public interface IDocumentJobScheduler
     /// <summary>Queues syncing a document's original file to the owner's Google Drive.</summary>
     void EnqueueDriveSync(Guid documentId);
 
+    /// <summary>Queues upserting the document's expiry reminder event in the owner's Google Calendar.</summary>
+    void EnqueueCalendarSync(Guid documentId);
+
     /// <summary>
     /// Dispatches a single reminder to fire at <paramref name="runAtUtc"/>. With a job server
     /// running this becomes a delayed Hangfire job; without one it is a no-op (the Pending

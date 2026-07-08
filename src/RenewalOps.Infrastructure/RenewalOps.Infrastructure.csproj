@@ -11,6 +11,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Google.Apis.Calendar.v3" Version="1.75.0.4182" />
     <PackageReference Include="Google.Apis.Drive.v3" Version="1.75.0.4192" />
     <PackageReference Include="Hangfire.AspNetCore" Version="1.8.23" />
     <PackageReference Include="Hangfire.PostgreSql" Version="1.21.1" />
