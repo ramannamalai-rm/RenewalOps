@@ -63,7 +63,7 @@ public class DriveSyncJob
 
         await using var fileStream = await _storage.DownloadAsync(document.StorageKey, ct);
         var fileId = await _driveClient.UploadToRenewalOpsFolderAsync(
-            document.OwnerId, document.OriginalFileName, document.ContentType, fileStream, ct);
+            document.OwnerId, document.Id, document.OriginalFileName, document.ContentType, fileStream, ct);
 
         document.GoogleDriveFileId = fileId;
         await _documentRepo.UpdateAsync(document, ct);

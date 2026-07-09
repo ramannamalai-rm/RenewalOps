@@ -106,6 +106,36 @@ public class CalendarSyncTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
+    public async Task Resync_After_Lost_EventId_Reuses_Same_Event()
+    {
+        // Simulates a crash between event creation and persisting GoogleCalendarEventId: the
+        // second run has a null id but must converge on the same event (via the doc-id marker).
+        var ownerId = Guid.NewGuid();
+        using var scope = _factory.Services.CreateScope();
+        var sp = scope.ServiceProvider;
+        var db = sp.GetRequiredService<AppDbContext>();
+
+        var doc = NewDocument(ownerId, DateTime.UtcNow.AddDays(60));
+        db.Users.Add(NewUser(ownerId));
+        db.Documents.Add(doc);
+        db.GoogleConnections.Add(ActiveConnection(ownerId));
+        await db.SaveChangesAsync();
+
+        var job = sp.GetRequiredService<CalendarSyncJob>();
+        await job.RunAsync(doc.Id);
+        var firstId = (await db.Documents.FindAsync(doc.Id))!.GoogleCalendarEventId;
+
+        var reload = await db.Documents.FindAsync(doc.Id);
+        reload!.GoogleCalendarEventId = null;
+        await db.SaveChangesAsync();
+
+        await job.RunAsync(doc.Id);
+        var secondId = (await db.Documents.FindAsync(doc.Id))!.GoogleCalendarEventId;
+
+        secondId.Should().Be(firstId, "the marker-based lookup must reuse the same calendar event");
+    }
+
+    [Fact]
     public async Task Resync_Upserts_The_Same_Event()
     {
         var ownerId = Guid.NewGuid();

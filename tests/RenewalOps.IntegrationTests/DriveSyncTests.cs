@@ -97,6 +97,44 @@ public class DriveSyncTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
+    public async Task Resync_After_Lost_FileId_Reuses_Same_Drive_File()
+    {
+        // Simulates a crash between Drive upload and persisting GoogleDriveFileId: the second
+        // run has a null id but must converge on the same remote file (via the doc-id marker),
+        // not create a duplicate.
+        var ownerId = Guid.NewGuid();
+        using var scope = _factory.Services.CreateScope();
+        var sp = scope.ServiceProvider;
+        var db = sp.GetRequiredService<AppDbContext>();
+
+        var doc = NewDocument(ownerId);
+        db.Users.Add(NewUser(ownerId));
+        db.Documents.Add(doc);
+        db.GoogleConnections.Add(new GoogleConnection
+        {
+            UserId = ownerId,
+            EncryptedRefreshToken = "encrypted-token",
+            IsRevoked = false
+        });
+        await db.SaveChangesAsync();
+        await SeedFileAsync(sp, doc);
+
+        var job = sp.GetRequiredService<DriveSyncJob>();
+        await job.RunAsync(doc.Id);
+        var firstId = (await db.Documents.FindAsync(doc.Id))!.GoogleDriveFileId;
+
+        // Wipe the persisted id to mimic the crash, then re-run.
+        var reload = await db.Documents.FindAsync(doc.Id);
+        reload!.GoogleDriveFileId = null;
+        await db.SaveChangesAsync();
+
+        await job.RunAsync(doc.Id);
+        var secondId = (await db.Documents.FindAsync(doc.Id))!.GoogleDriveFileId;
+
+        secondId.Should().Be(firstId, "the marker-based lookup must reuse the same Drive file");
+    }
+
+    [Fact]
     public async Task Sync_Is_Idempotent_When_Already_Synced()
     {
         var ownerId = Guid.NewGuid();

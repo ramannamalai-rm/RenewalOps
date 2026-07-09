@@ -12,6 +12,7 @@ public sealed class GoogleDriveClient : IGoogleDriveClient
     private const string FolderName = "RenewalOps";
     private const string FolderMimeType = "application/vnd.google-apps.folder";
     private const string ApplicationName = "RenewalOps";
+    private const string DocumentIdProperty = "renewalOpsDocumentId";
 
     private readonly GoogleCredentialFactory _credentialFactory;
     private readonly ILogger<GoogleDriveClient> _logger;
@@ -23,7 +24,7 @@ public sealed class GoogleDriveClient : IGoogleDriveClient
     }
 
     public async Task<string> UploadToRenewalOpsFolderAsync(
-        Guid userId, string fileName, string contentType, Stream content, CancellationToken ct = default)
+        Guid userId, Guid documentId, string fileName, string contentType, Stream content, CancellationToken ct = default)
     {
         var credential = await _credentialFactory.CreateAsync(userId, ct)
             ?? throw new InvalidOperationException($"No active Google connection for user {userId}.");
@@ -34,9 +35,23 @@ public sealed class GoogleDriveClient : IGoogleDriveClient
             ApplicationName = ApplicationName
         });
 
+        // Idempotency: if a file already carries this document's marker, reuse it. This covers
+        // the case where a prior run uploaded the file but crashed before persisting the id.
+        var existingId = await FindExistingFileAsync(drive, documentId, ct);
+        if (existingId is not null)
+        {
+            _logger.LogInformation("Drive file for document {DocId} already exists ({FileId}); reusing", documentId, existingId);
+            return existingId;
+        }
+
         var folderId = await EnsureFolderAsync(drive, ct);
 
-        var metadata = new DriveFile { Name = fileName, Parents = [folderId] };
+        var metadata = new DriveFile
+        {
+            Name = fileName,
+            Parents = [folderId],
+            AppProperties = new Dictionary<string, string> { [DocumentIdProperty] = documentId.ToString("N") }
+        };
         var request = drive.Files.Create(metadata, content, contentType);
         request.Fields = "id";
 
@@ -47,6 +62,16 @@ public sealed class GoogleDriveClient : IGoogleDriveClient
         var fileId = request.ResponseBody.Id;
         _logger.LogInformation("Uploaded '{FileName}' to Drive folder {FolderId} as {FileId}", fileName, folderId, fileId);
         return fileId;
+    }
+
+    private static async Task<string?> FindExistingFileAsync(DriveService drive, Guid documentId, CancellationToken ct)
+    {
+        var list = drive.Files.List();
+        list.Q = $"appProperties has {{ key='{DocumentIdProperty}' and value='{documentId:N}' }} and trashed=false";
+        list.Fields = "files(id)";
+        list.Spaces = "drive";
+        var result = await list.ExecuteAsync(ct);
+        return result.Files is { Count: > 0 } ? result.Files[0].Id : null;
     }
 
     private static async Task<string> EnsureFolderAsync(DriveService drive, CancellationToken ct)

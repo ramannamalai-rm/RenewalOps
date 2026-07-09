@@ -128,24 +128,40 @@ public class FakeOcrService : IOcrService
     }
 }
 
-/// <summary>Fake Drive client so sync jobs can be tested without hitting Google.</summary>
+/// <summary>
+/// Fake Drive client so sync jobs can be tested without hitting Google. Simulates the remote
+/// document-id marker: the same documentId always maps to the same file id (idempotent).
+/// </summary>
 public class FakeGoogleDriveClient : IGoogleDriveClient
 {
     public const string FileId = "fake-drive-file-id";
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, string> _byDocument = new();
 
     public Task<string> UploadToRenewalOpsFolderAsync(
-        Guid userId, string fileName, string contentType, Stream content, CancellationToken ct = default)
-        => Task.FromResult(FileId);
+        Guid userId, Guid documentId, string fileName, string contentType, Stream content, CancellationToken ct = default)
+        => Task.FromResult(_byDocument.GetOrAdd(documentId, _ => FileId));
 }
 
-/// <summary>Fake Calendar client. Echoes an existing event id (upsert) or returns a new one.</summary>
+/// <summary>
+/// Fake Calendar client. Upserts by the explicit event id when given; otherwise recovers the
+/// event by its document-id marker (same documentId => same event id), mirroring the real
+/// idempotent behavior.
+/// </summary>
 public class FakeGoogleCalendarClient : IGoogleCalendarClient
 {
     public const string NewEventId = "fake-calendar-event-id";
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, string> _byDocument = new();
 
     public Task<string> UpsertExpiryEventAsync(
-        Guid userId, string? existingEventId, string summary, string description, DateTime eventDateUtc, CancellationToken ct = default)
-        => Task.FromResult(string.IsNullOrEmpty(existingEventId) ? NewEventId : existingEventId);
+        Guid userId, Guid documentId, string? existingEventId, string summary, string description, DateTime eventDateUtc, CancellationToken ct = default)
+    {
+        if (!string.IsNullOrEmpty(existingEventId))
+        {
+            _byDocument[documentId] = existingEventId;
+            return Task.FromResult(existingEventId);
+        }
+        return Task.FromResult(_byDocument.GetOrAdd(documentId, _ => NewEventId));
+    }
 }
 
 /// <summary>Intercepts the Google token-exchange POST and returns a canned token response.</summary>

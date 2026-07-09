@@ -70,7 +70,7 @@ public class CalendarSyncJob
             $"RenewalOps: '{document.Title}' ({document.DocumentType}) expires on {expiry:yyyy-MM-dd}.";
 
         var eventId = await _calendarClient.UpsertExpiryEventAsync(
-            document.OwnerId, document.GoogleCalendarEventId, summary, description, eventDateUtc, ct);
+            document.OwnerId, document.Id, document.GoogleCalendarEventId, summary, description, eventDateUtc, ct);
 
         if (document.GoogleCalendarEventId != eventId)
         {
